@@ -20,6 +20,18 @@ from deep_translator import (GoogleTranslator,
                              QcriTranslator,
                              single_detection,
                              batch_detection)
+from bark import SAMPLE_RATE, generate_audio, preload_models
+from scipy.io.wavfile import write as write_wav
+
+
+preload_models()
+
+def speak_text(text_box, voice_var):
+    text = text_box.get("1.0", tk.END)
+    selected_voice = voice_var.get()
+    audio_array = generate_audio(text, history_prompt=selected_voice)
+    write_wav('output.wav', SAMPLE_RATE, audio_array)
+    os.system('start output.wav')
 
 class Recorder: 
     def __init__(self):
@@ -99,6 +111,42 @@ def update_label():
 recorder = Recorder()
 
 root = tk.Tk()
+voice_options = [
+    "v2/en_speaker_0", "v2/en_speaker_1", "v2/en_speaker_2", "v2/en_speaker_3", "v2/en_speaker_4",
+    "v2/en_speaker_5", "v2/en_speaker_6", "v2/en_speaker_7", "v2/en_speaker_8", "v2/en_speaker_9",
+    "v2/zh_speaker_0", "v2/zh_speaker_1", "v2/zh_speaker_2", "v2/zh_speaker_3", "v2/zh_speaker_4",
+    "v2/zh_speaker_5", "v2/zh_speaker_6", "v2/zh_speaker_7", "v2/zh_speaker_8", "v2/zh_speaker_9",
+    "v2/fr_speaker_0", "v2/fr_speaker_1", "v2/fr_speaker_2", "v2/fr_speaker_3", "v2/fr_speaker_4",
+    "v2/fr_speaker_5", "v2/fr_speaker_6", "v2/fr_speaker_7", "v2/fr_speaker_8", "v2/fr_speaker_9",
+    "v2/de_speaker_0", "v2/de_speaker_1", "v2/de_speaker_2", "v2/de_speaker_3", "v2/de_speaker_4",
+    "v2/de_speaker_5", "v2/de_speaker_6", "v2/de_speaker_7", "v2/de_speaker_8", "v2/de_speaker_9",
+    "v2/hi_speaker_0", "v2/hi_speaker_1", "v2/hi_speaker_2", "v2/hi_speaker_3", "v2/hi_speaker_4",
+    "v2/hi_speaker_5", "v2/hi_speaker_6", "v2/hi_speaker_7", "v2/hi_speaker_8", "v2/hi_speaker_9",
+    "v2/it_speaker_0", "v2/it_speaker_1", "v2/it_speaker_2", "v2/it_speaker_3", "v2/it_speaker_4",
+    "v2/it_speaker_5", "v2/it_speaker_6", "v2/it_speaker_7", "v2/it_speaker_8", "v2/it_speaker_9",
+    "v2/ja_speaker_0", "v2/ja_speaker_1", "v2/ja_speaker_2", "v2/ja_speaker_3", "v2/ja_speaker_4",
+    "v2/ja_speaker_5", "v2/ja_speaker_6", "v2/ja_speaker_7", "v2/ja_speaker_8", "v2/ja_speaker_9",
+    "v2/ko_speaker_0", "v2/ko_speaker_1", "v2/ko_speaker_2", "v2/ko_speaker_3", "v2/ko_speaker_4",
+    "v2/ko_speaker_5", "v2/ko_speaker_6", "v2/ko_speaker_7", "v2/ko_speaker_8", "v2/ko_speaker_9",
+    "v2/pl_speaker_0", "v2/pl_speaker_1", "v2/pl_speaker_2", "v2/pl_speaker_3", "v2/pl_speaker_4",
+    "v2/pl_speaker_5", "v2/pl_speaker_6", "v2/pl_speaker_7", "v2/pl_speaker_8", "v2/pl_speaker_9",
+    "v2/pt_speaker_0", "v2/pt_speaker_1", "v2/pt_speaker_2", "v2/pt_speaker_3", "v2/pt_speaker_4",
+    "v2/pt_speaker_5", "v2/pt_speaker_6", "v2/pt_speaker_7", "v2/pt_speaker_8", "v2/pt_speaker_9",
+    "v2/ru_speaker_0", "v2/ru_speaker_1", "v2/ru_speaker_2", "v2/ru_speaker_3", "v2/ru_speaker_4",
+    "v2/ru_speaker_5", "v2/ru_speaker_6", "v2/ru_speaker_7", "v2/ru_speaker_8", "v2/ru_speaker_9",
+    "v2/es_speaker_0", "v2/es_speaker_1", "v2/es_speaker_2", "v2/es_speaker_3", "v2/es_speaker_4",
+    "v2/es_speaker_5", "v2/es_speaker_6", "v2/es_speaker_7", "v2/es_speaker_8", "v2/es_speaker_9",
+    "v2/tr_speaker_0", "v2/tr_speaker_1", "v2/tr_speaker_2", "v2/tr_speaker_3", "v2/tr_speaker_4",
+    "v2/tr_speaker_5", "v2/tr_speaker_6", "v2/tr_speaker_7", "v2/tr_speaker_8", "v2/tr_speaker_9"
+]
+voice_var = tk.StringVar(root)
+voice_var.set(voice_options[0])  # default value
+voice_menu = ttk.Combobox(root, textvariable=voice_var, values=voice_options)
+voice_menu.pack()
+speak_button1 = tk.Button(root, text="Speak Translated Text 1", command=lambda: speak_text(translated_box1, voice_var))
+speak_button1.pack(side=tk.LEFT)
+speak_button2 = tk.Button(root, text="Speak Translated Text 2", command=lambda: speak_text(translated_box2, voice_var))
+speak_button2.pack(side=tk.RIGHT)
 start_button = tk.Button(root, text="Start Recording", command=lambda: [recorder.start_recording(), update_label()])
 start_button.pack()
 stop_button = tk.Button(root, text="Stop and Transcribe Audio", command=transcribe_audio)
