@@ -7,6 +7,7 @@ import scipy.io.wavfile as wav
 import threading
 import time
 import os
+import threading
 from pytube import YouTube
 from deep_translator import (GoogleTranslator,
                              ChatGptTranslator,
@@ -32,6 +33,8 @@ def speak_text(text_box, voice_var):
     audio_array = generate_audio(text, history_prompt=selected_voice)
     write_wav('output.wav', SAMPLE_RATE, audio_array)
     os.system('start output.wav')
+
+
 
 class Recorder: 
     def __init__(self):
@@ -59,6 +62,47 @@ class Recorder:
             self.is_recording = False
             print("Recording cancelled.")
 
+    def record_chunk(self, duration=7):
+        print(f"Recording for {duration} seconds...")
+        chunk = sd.rec(int(duration * self.fs), samplerate=self.fs, channels=2)
+        sd.wait()
+        return chunk
+
+def realtime_transcribe_translate():
+    model = whisper.load_model("base")
+    is_running = True
+
+    def process_audio():
+        nonlocal is_running
+        while is_running:
+            chunk = recorder.record_chunk()
+            wav.write('temp_chunk.wav', recorder.fs, chunk)
+            
+            result = model.transcribe('temp_chunk.wav')
+            transcript = result["text"]
+            
+            transcript_box.insert(tk.END, transcript + "\n")
+            transcript_box.see(tk.END)
+            
+            translated_text1 = GoogleTranslator(source='auto', target=language_var1.get()).translate(transcript)
+            translated_box1.insert(tk.END, translated_text1 + "\n")
+            translated_box1.see(tk.END)
+            
+            translated_text2 = GoogleTranslator(source='auto', target=language_var2.get()).translate(transcript)
+            translated_box2.insert(tk.END, translated_text2 + "\n")
+            translated_box2.see(tk.END)
+
+    thread = threading.Thread(target=process_audio)
+    thread.start()
+
+    def stop_realtime():
+        nonlocal is_running
+        is_running = False
+        thread.join()
+        print("Real-time transcription and translation stopped.")
+
+    stop_button = tk.Button(root, text="Stop Real-time", command=stop_realtime)
+    stop_button.grid(row=11, column=0, columnspan=3)
 def transcribe_audio():
     model = whisper.load_model("base")
     filename, duration = recorder.stop_recording()
@@ -181,6 +225,9 @@ open_file_button.grid(row=6, column=0, columnspan=3)
 
 youtube_button = tk.Button(root, text="Open YouTube Video", command=open_youtube_video)
 youtube_button.grid(row=7, column=0, columnspan=3)
+
+realtime_button = tk.Button(root, text="Start Real-time Transcription", command=realtime_transcribe_translate)
+realtime_button.grid(row=10, column=0, columnspan=3)
 
 label = tk.Label(root, text="")
 label.grid(row=8, column=0, columnspan=3)
