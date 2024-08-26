@@ -1,5 +1,5 @@
 1. Define the Project Goal
-   - Objective: Develop a translation app that transcribes spoken language into text, translates it into another language, and then converts it back into speech.
+   - Objective: Develop a translation app that transcribes spoken language into text, translates it into another language, and then converts it back into speech (Trainable Voice Your Own).
    - Steps:
      1. Identify Interests: We are interested in language translation using AI-powered voice and text processing.
      2. Problem Statement: The project aims to create a translation app that leverages AI models for speech-to-text (Whisper AI), text translation (Google Translate API), and text-to-speech (Bark AI).
