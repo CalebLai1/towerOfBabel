@@ -1,12 +1,14 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, scrolledtext
 import pyaudio
 import wave
 import os
 import numpy as np
 from scipy.io import wavfile
-from scipy.signal import butter, lfilter
 import threading
+import torch
+from bark import SAMPLE_RATE, generate_audio, preload_models
+import sounddevice as sd
 
 class ConversationMode(ttk.Frame):
     def __init__(self, parent, shared):
@@ -17,28 +19,20 @@ class ConversationMode(ttk.Frame):
         self.current_speaker = None
         self.stop_requested = False
 
+        if torch.cuda.is_available():
+            print("GPU available. Forcing Bark to use GPU.")
+            os.environ["CUDA_VISIBLE_DEVICES"] = "0"  
+            torch.cuda.set_device(0)
+        else:
+            print("GPU not available. Bark will use CPU.")
+
+        preload_models()
+
         self.create_widgets()
 
     def create_widgets(self):
-        self.conversation_frame = ttk.Frame(self)
-        self.conversation_frame.pack(fill=tk.BOTH, expand=True)
-
-        self.canvas = tk.Canvas(self.conversation_frame)
-        self.scrollbar = ttk.Scrollbar(self.conversation_frame, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = ttk.Frame(self.canvas)
-
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(
-                scrollregion=self.canvas.bbox("all")
-            )
-        )
-
-        self.canvas.create_window((400, 0), window=self.scrollable_frame, anchor="n")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-
-        self.canvas.pack(side="left", fill=tk.BOTH, expand=True)
-        self.scrollbar.pack(side="right", fill="y")
+        self.text_box = scrolledtext.ScrolledText(self, wrap=tk.WORD, width=80, height=20)
+        self.text_box.pack(padx=10, pady=10)
 
         control_frame = ttk.Frame(self)
         control_frame.pack(fill=tk.X, padx=10, pady=5)
@@ -59,8 +53,11 @@ class ConversationMode(ttk.Frame):
         self.other_button = ttk.Button(control_frame, text="Start Other's Turn", command=lambda: self.toggle_recording("other"))
         self.other_button.grid(row=1, column=2, columnspan=2, pady=10)
 
+        self.clear_button = ttk.Button(control_frame, text="Clear Text", command=self.clear_text)
+        self.clear_button.grid(row=2, column=0, columnspan=4, pady=10)
+
         self.volume_meter = ttk.Progressbar(control_frame, orient="horizontal", length=200, mode="determinate")
-        self.volume_meter.grid(row=2, column=0, columnspan=4, pady=5)
+        self.volume_meter.grid(row=3, column=0, columnspan=4, pady=5)
 
     def toggle_recording(self, speaker):
         if self.is_recording:
@@ -95,6 +92,7 @@ class ConversationMode(ttk.Frame):
                         input=True,
                         frames_per_buffer=CHUNK)
 
+        print("Started recording...")
         frames = []
 
         while self.is_recording and not self.stop_requested:
@@ -104,6 +102,7 @@ class ConversationMode(ttk.Frame):
             volume = np.max(np.abs(np.frombuffer(data, dtype=np.int16))) / 32767 * 100
             self.update_volume_meter(volume)
 
+        print("Stopped recording...")
         stream.stop_stream()
         stream.close()
         p.terminate()
@@ -112,11 +111,16 @@ class ConversationMode(ttk.Frame):
         self.stop_requested = False
 
         audio_data = np.concatenate(frames)
-        audio_data = self.reduce_noise(audio_data, RATE)
         wavfile.write(WAVE_OUTPUT_FILENAME, RATE, audio_data.astype(np.int16))
 
+        print(f"Audio file saved: {os.path.abspath(WAVE_OUTPUT_FILENAME)}")
+        print(f"File size: {os.path.getsize(WAVE_OUTPUT_FILENAME)} bytes")
+
         try:
+            print("Starting transcription...")
             transcription, detected_language = self.shared.transcribe_audio(WAVE_OUTPUT_FILENAME)
+            print(f"Transcription completed. Detected language: {detected_language}")
+            print(f"Transcription text: {transcription}")
             
             if transcription.strip():
                 your_lang_code = self.shared.get_language_code(self.your_lang.get())
@@ -124,18 +128,23 @@ class ConversationMode(ttk.Frame):
 
                 if self.current_speaker == "you":
                     translated_text = self.shared.translate_text(transcription, your_lang_code, other_lang_code)
-                    self.add_message(transcription, "right", your_lang_code)
-                    self.add_message(translated_text, "left", other_lang_code)
+                    self.add_message(f"You ({your_lang_code}): {transcription}")
+                    self.add_message(f"You (translated to {other_lang_code}): {translated_text}")
+                    self.generate_speech(translated_text, other_lang_code)
                 else:
                     translated_text = self.shared.translate_text(transcription, other_lang_code, your_lang_code)
-                    self.add_message(transcription, "left", other_lang_code)
-                    self.add_message(translated_text, "right", your_lang_code)
+                    self.add_message(f"Other ({other_lang_code}): {transcription}")
+                    self.add_message(f"Other (translated to {your_lang_code}): {translated_text}")
+                    self.generate_speech(translated_text, your_lang_code)
+            else:
+                print("Transcription was empty.")
         except Exception as e:
             print(f"An error occurred during transcription or translation: {e}")
         finally:
             if os.path.exists(WAVE_OUTPUT_FILENAME):
                 try:
                     os.remove(WAVE_OUTPUT_FILENAME)
+                    print(f"Temporary file {WAVE_OUTPUT_FILENAME} removed.")
                 except Exception as e:
                     print(f"Error removing temporary file: {e}")
 
@@ -146,33 +155,71 @@ class ConversationMode(ttk.Frame):
             self.other_button.config(text="Start Other's Turn", state="normal")
             self.your_button.config(state="normal")
 
-    def add_message(self, text, side, lang_code):
-        frame = ttk.Frame(self.scrollable_frame, width=700)
-        frame.pack(pady=5)
-        frame.pack_propagate(False)
+    def generate_speech(self, text, language_code):
+        print(f"Generating speech for: {text[:50]}... in language {language_code}")
+        
+        voice_preset = self.get_voice_preset(language_code)
+        
+        audio_array = generate_audio(text, history_prompt=voice_preset)
+        
+        output_filename = "generated_speech.wav"
+        wavfile.write(output_filename, SAMPLE_RATE, audio_array)
+        
+        print(f"Speech generated and saved as {output_filename}")
+        
+        sd.play(audio_array, SAMPLE_RATE)
+        sd.wait()
 
-        message_frame = ttk.Frame(frame, style=f"{side}.TFrame")
-        message_frame.pack(side=side, padx=10)
+    def get_voice_preset(self, language_code):
+        voice_presets = {
+            "en": "v2/en_speaker_6",
+            "es": "v2/es_speaker_6",
+        }
+        return voice_presets.get(language_code, "v2/en_speaker_6")  
 
-        label = ttk.Label(message_frame, text=f"{text}\n({lang_code})", wraplength=300, justify="left", style=f"{side}.TLabel")
-        label.pack(padx=10, pady=5)
-
-        self.canvas.update_idletasks()
-        self.canvas.yview_moveto(1.0)
+    def add_message(self, text):
+        self.text_box.insert(tk.END, f"{text}\n\n")
+        self.text_box.see(tk.END)
+        print(f"Message added to text box: {text[:50]}...")
 
     def update_volume_meter(self, volume):
         self.volume_meter["value"] = volume
         self.update_idletasks()
 
+    def clear_text(self):
+        self.text_box.delete('1.0', tk.END)
+
     def detect_voice_activity(self, audio_data, threshold=0.01):
         return np.max(np.abs(audio_data)) > threshold
 
-    def reduce_noise(self, audio_data, sample_rate):
-        cutoff = 1000  # Cutoff frequency of 1000 Hz
-        nyquist = 0.5 * sample_rate
-        normal_cutoff = cutoff / nyquist
-        order = 6
-        b, a = butter(order, normal_cutoff, btype='high', analog=False)
-        
-        filtered_audio = lfilter(b, a, audio_data)
-        return filtered_audio
+class SharedResources:
+    def __init__(self):
+        pass
+
+    def get_language_dict(self):
+        return {
+            "en": "English",
+            "es": "Spanish",
+        }
+
+    def get_language_code(self, language_name):
+        lang_dict = {v: k for k, v in self.get_language_dict().items()}
+        return lang_dict.get(language_name, "en") 
+    def transcribe_audio(self, audio_file):
+        print(f"Transcribing audio file: {audio_file}")
+        return "This is a placeholder transcription.", "en"
+
+    def translate_text(self, text, source_lang, target_lang):
+        print(f"Translating from {source_lang} to {target_lang}: {text[:50]}...")
+        return f"Translated: {text}"
+
+def main():
+    root = tk.Tk()
+    root.title("Conversation Mode")
+    shared = SharedResources()
+    app = ConversationMode(root, shared)
+    app.pack(expand=True, fill=tk.BOTH)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
