@@ -59,6 +59,7 @@ class RealTimeTranslatorApp:
         self.conversation_text.tag_configure('right', justify='right', foreground='green')
         self.conversation_text.tag_configure('system', justify='center', foreground='gray')
         self.conversation_text.tag_configure('bold', font=('Arial', 10, 'bold'))
+        self.conversation_text.tag_configure('italic', font=('Arial', 10, 'italic'))
 
         # Bottom frame for controls
         controls_frame = tk.Frame(self.root)
@@ -190,16 +191,16 @@ class RealTimeTranslatorApp:
             # Display original text with speaker label
             self.conversation_text.insert(tk.END, f"{speaker_label}: ", ('bold', alignment))
             self.conversation_text.insert(tk.END, f"{text}\n", alignment)
-            self.conversation_text.see(tk.END)
 
             # Translate the text
             translated = self.translator_manager.translate_text(text, src_lang_code, dest_lang_code)
 
-            # Display translated text on the opposite side
-            other_alignment = 'right' if alignment == 'left' else 'left'
-            other_speaker_label = "You" if speaker_label == "Them" else "Them"
-            self.conversation_text.insert(tk.END, f"{other_speaker_label} (Translated): ", ('bold', other_alignment))
-            self.conversation_text.insert(tk.END, f"{translated}\n", other_alignment)
+            # Display translated text with prefix "Translated: "
+            self.conversation_text.insert(tk.END, f"Translated: {translated}\n", (alignment, 'italic'))
+
+            # Add a blank line for spacing
+            self.conversation_text.insert(tk.END, "\n")
+
             self.conversation_text.see(tk.END)
 
             # Reset recording buttons
