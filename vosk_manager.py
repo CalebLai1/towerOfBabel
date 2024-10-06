@@ -3,10 +3,8 @@ import urllib.request
 import zipfile
 import shutil
 
-# Directory to store models
 MODEL_DIR = "vosk_models"
 
-# Ensure the model directory exists
 if not os.path.exists(MODEL_DIR):
     os.makedirs(MODEL_DIR)
 

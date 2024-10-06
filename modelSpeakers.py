@@ -1,9 +1,6 @@
-# models_speakers.py
-
-# Define available models
 AVAILABLE_MODELS = {
     'English': 'en',
-    'Chinese': 'zh-cn',
+    'Chinese': 'zh',
     'French': 'fr',
     'German': 'de',
     'Hindi': 'hi',
@@ -15,12 +12,8 @@ AVAILABLE_MODELS = {
     'Russian': 'ru',
     'Spanish': 'es',
     'Turkish': 'tr',
-    # Add other languages as needed
 }
 
-# Define comprehensive speakers list
-# Replace the list below with your complete speakers data
-# Define comprehensive speakers list
 AVAILABLE_SPEAKERS = [
     # English Speakers
     {"id": "v2/en_speaker_0", "display": "Speaker 0 (EN) - English - Male", "language": "English", "gender": "Male"},
