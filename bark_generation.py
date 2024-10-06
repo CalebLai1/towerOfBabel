@@ -9,7 +9,10 @@ preload_models()
 
 def generate_bark_audio(text, dest_lang_code, speaker_id):
     try:
-        # Generate audio using Bark with the selected speaker
+        if not speaker_id:
+            raise ValueError("Invalid speaker_id provided.")
+
+        # Generate audio using Bark with the selected speaker_id
         audio_array = generate_audio(text, history_prompt=speaker_id)
 
         # Define the output file path
@@ -21,6 +24,8 @@ def generate_bark_audio(text, dest_lang_code, speaker_id):
         # Save the audio to a WAV file
         sf.write(filepath, audio_array, SAMPLE_RATE)
         print(f"Audio saved to {filepath}")
+        return filepath
 
     except Exception as e:
         print(f"Error generating audio: {e}")
+        return None
