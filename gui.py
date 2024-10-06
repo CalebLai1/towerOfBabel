@@ -1,4 +1,5 @@
 import os
+import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
@@ -8,8 +9,15 @@ from transcriber import Transcriber
 from translator import TranslatorManager
 from modelSpeakers import AVAILABLE_SPEAKERS
 from bark_generation import generate_bark_audio
-from playsound import playsound
 from pathlib import Path
+import platform
+
+if platform.system() == 'Windows':
+    import winsound
+else:
+    from playsound import playsound
+
+os.chdir(Path(sys.argv[0]).parent)
 
 LANGUAGE_CODES = {
     'English': 'en',
@@ -46,6 +54,8 @@ class RealTimeTranslatorApp:
         self.root.title("Real-Time Translator and Transcriber")
         self.models = {}
         self.translator_manager = TranslatorManager()
+        self.bark_audio_dir = Path("bark_audio")
+        self.bark_audio_dir.mkdir(exist_ok=True)
         self.create_widgets()
 
     def create_widgets(self):
@@ -360,25 +370,29 @@ class RealTimeTranslatorApp:
 
     def generate_audio(self, text, dest_lang_code, speaker_id, play_button):
         filepath = generate_bark_audio(text, dest_lang_code, speaker_id)
-        filepath = Path(filepath).resolve()
+        filepath = Path(filepath.replace('\\', '/')).resolve()
         if filepath.exists():
-            self.root.after(0, lambda: self.enable_play_button(play_button, filepath))
+            self.root.after(0, lambda: self.enable_play_button(play_button, str(filepath)))
             self.root.after(0, lambda: messagebox.showinfo("Success", f"Audio saved to {filepath}"))
         else:
             self.root.after(0, lambda: messagebox.showerror("Error", "Failed to generate audio."))
 
     def enable_play_button(self, play_button, filepath):
+        filepath_str = str(filepath).replace('"', '').replace("'", "")
         play_button.config(state=tk.NORMAL)
-        play_button.filepath = str(filepath)
+        play_button.filepath = filepath_str
 
     def play_audio(self, filepath):
-        filepath = Path(filepath)
+        filepath = Path(filepath).resolve()
         if not filepath.exists():
-            messagebox.showerror("Error", "Audio file not found.")
+            messagebox.showerror("Error", f"Audio file not found: {filepath}")
             return
-
+        filepath_str = str(filepath).replace('"', '').replace("'", "")
         try:
-            playsound(str(filepath))
+            if platform.system() == 'Windows':
+                winsound.PlaySound(filepath_str, winsound.SND_FILENAME)
+            else:
+                playsound(filepath_str)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to play audio: {e}")
 
