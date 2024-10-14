@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 from vosk import Model
-from vosk_manager import MODEL_DIR, AVAILABLE_MODELS, download_and_extract_model
+from vosk_manager import MODEL_DIR, AVAILABLE_MODELS, download_and_extract_model, download_all_models
 from transcriber import Transcriber
 from translator import TranslatorManager
 from modelSpeakers import AVAILABLE_SPEAKERS
@@ -124,6 +124,9 @@ class RealTimeTranslatorApp:
 
         self.left_language_dropdown.bind("<<ComboboxSelected>>", lambda event: self.update_model('left'))
         self.right_language_dropdown.bind("<<ComboboxSelected>>", lambda event: self.update_model('right'))
+
+        download_models_button = tk.Button(self.root, text="Download All Models", command=self.download_all_models)
+        download_models_button.pack(pady=10)
 
     def update_model(self, side):
         language = self.get_language(side)
@@ -395,6 +398,9 @@ class RealTimeTranslatorApp:
                 playsound(filepath_str)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to play audio: {e}")
+
+    def download_all_models(self):
+        download_all_models()
 
 if __name__ == "__main__":
     root = tk.Tk()
