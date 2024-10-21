@@ -1,7 +1,8 @@
 import pyaudio
 import json
 import threading
-from vosk import KaldiRecognizer, Model
+from vosk import KaldiRecognizer
+import wave
 import re
 
 class Transcriber:
@@ -42,3 +43,25 @@ class Transcriber:
 
     def stop_recording(self):
         self.is_recording = False
+
+    def transcribe_file(self, filepath):
+        wf = wave.open(filepath, 'rb')
+        rec = KaldiRecognizer(self.model, wf.getframerate())
+        rec.SetWords(True)
+        rec.SetPartialWords(True)
+        result_text = ''
+        while True:
+            data = wf.readframes(4000)
+            if len(data) == 0:
+                break
+            if rec.AcceptWaveform(data):
+                result = json.loads(rec.Result())
+                text = result.get('text', '')
+                text = re.sub(r'\s+', ' ', text).strip()
+                result_text += text + ' '
+        final_result = json.loads(rec.FinalResult())
+        final_text = final_result.get('text', '')
+        final_text = re.sub(r'\s+', ' ', final_text).strip()
+        result_text += final_text
+        wf.close()
+        return result_text.strip()
